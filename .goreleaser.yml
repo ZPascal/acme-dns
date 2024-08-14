@@ -9,11 +9,11 @@ before:
 builds:
   - env:
       - CGO_ENABLED=1
+      - CC=zig cc
+      - CXX=zig cc
     goos:
       - linux
-    goarch:
-      - amd64
-      - arm64
+      - darwin
     ldflags:
       - extldflags=-static
 checksum:
