@@ -31,7 +31,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           version: v2.1.0
-          args: "release --config --clean"
+          args: "release --clean"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -40,6 +40,6 @@ jobs:
         if: startsWith(github.ref, 'refs/pull/')
         with:
           version: v2.1.0
-          args: "release --config --clean --snapshot"
+          args: "release --clean --snapshot"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

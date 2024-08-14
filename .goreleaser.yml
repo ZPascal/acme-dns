@@ -9,8 +9,8 @@ before:
 builds:
   - env:
       - CGO_ENABLED=1
-      - CC=zig cc
-      - CXX=zig cc
+      - CC="zig cc"
+      - CXX="zig cc"
     goos:
       - linux
       - darwin
