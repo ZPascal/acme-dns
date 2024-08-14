@@ -2,8 +2,6 @@ module github.com/joohoi/acme-dns
 
 go 1.23.0
 
-toolchain go1.23.2
-
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
