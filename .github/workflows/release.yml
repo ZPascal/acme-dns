@@ -45,7 +45,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   goreleaser-mac:
-    runs-on: macos-13-latest
+    runs-on: macos-13
     permissions:
       contents: write
       packages: write
