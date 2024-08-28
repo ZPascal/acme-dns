@@ -8,14 +8,10 @@ before:
     - go generate ./...
 builds:
   - env:
-      - CGO_ENABLED=1
-      - CC="zig cc"
-      - CXX="zig cc"
+      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
-    ldflags:
-      - extldflags=-static
 checksum:
   name_template: 'checksums.txt'
 snapshot:

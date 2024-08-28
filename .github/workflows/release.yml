@@ -18,9 +18,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install GCC
-        run: sudo apt-get install gcc
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
