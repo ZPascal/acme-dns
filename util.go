@@ -26,7 +26,10 @@ func fileIsAccessible(fname string) bool {
 	if err != nil {
 		return false
 	}
-	f.Close()
+	err = f.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the file")
+	}
 	return true
 }
 

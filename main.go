@@ -102,10 +102,15 @@ func main() {
 }
 
 func startHTTPAPI(errChan chan error, config DNSConfig, dnsservers []*DNSServer) {
+	var err error
+
 	// Setup http logger
 	logger := log.New()
 	logwriter := logger.Writer()
-	defer logwriter.Close()
+	err = logwriter.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the log writer")
+	}
 	// Setup logging for different dependencies to log with logrus
 	// Certmagic
 	stdlog.SetOutput(logwriter)
@@ -136,7 +141,6 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsservers []*DNSServer)
 		MinVersion: tls.VersionTLS12,
 	}
 
-	var err error
 	switch Config.API.TLS {
 	case "letsencryptstaging", "letsencrypt":
 
