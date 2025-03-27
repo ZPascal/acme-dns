@@ -54,7 +54,9 @@ func TestReadConfig(t *testing.T) {
 		if err != nil {
 			t.Error("Could not create temporary file")
 		}
-		defer os.Remove(tmpfile.Name())
+		if err := os.Remove(tmpfile.Name()); err != nil {
+			t.Error("Could not remove temporary file")
+		}
 
 		if _, err := tmpfile.Write(test.inFile); err != nil {
 			t.Error("Could not write to temporary file")
@@ -102,7 +104,9 @@ func TestFileCheckPermissionDenied(t *testing.T) {
 	if err != nil {
 		t.Error("Could not create temporary file")
 	}
-	defer os.Remove(tmpfile.Name())
+	if err := os.Remove(tmpfile.Name()); err != nil {
+		t.Error("Could not remove temporary file")
+	}
 	_ = syscall.Chmod(tmpfile.Name(), 0000)
 	if fileIsAccessible(tmpfile.Name()) {
 		t.Errorf("File should not be accessible")
@@ -121,7 +125,9 @@ func TestFileCheckOK(t *testing.T) {
 	if err != nil {
 		t.Error("Could not create temporary file")
 	}
-	defer os.Remove(tmpfile.Name())
+	if err := os.Remove(tmpfile.Name()); err != nil {
+		t.Error("Could not remove temporary file")
+	}
 	if !fileIsAccessible(tmpfile.Name()) {
 		t.Errorf("File should be accessible")
 	}

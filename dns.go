@@ -135,7 +135,7 @@ func (d *DNSServer) getRecord(q dns.Question) ([]dns.RR, error) {
 	var cnames []dns.RR
 	domain, ok := d.Domains[strings.ToLower(q.Name)]
 	if !ok {
-		return rr, fmt.Errorf("No records for domain %s", q.Name)
+		return rr, fmt.Errorf("no records for domain %s", q.Name)
 	}
 	for _, ri := range domain.Records {
 		if ri.Header().Rrtype == q.Qtype {
