@@ -122,7 +122,10 @@ func (d *acmedb) handleDBUpgradeTo1() error {
 		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in DB upgrade")
 		return err
 	}
-	defer rows.Close()
+	err = rows.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the database row")
+	}
 	for rows.Next() {
 		var subdomain string
 		err = rows.Scan(&subdomain)
@@ -166,7 +169,7 @@ func (d *acmedb) handleDBUpgradeTo1() error {
 	return err
 }
 
-// Create two rows for subdomain to the txt table
+// NewTXTValuesInTransaction Create two rows for subdomain to the txt table
 func (d *acmedb) NewTXTValuesInTransaction(tx *sql.Tx, subdomain string) error {
 	var err error
 	instr := fmt.Sprintf("INSERT INTO txt (Subdomain, LastUpdate) values('%s', 0)", subdomain)
@@ -206,7 +209,10 @@ func (d *acmedb) Register(afrom cidrslice) (ACMETxt, error) {
 		log.WithFields(log.Fields{"error": err.Error()}).Error("Database error in prepare")
 		return a, errors.New("SQL error")
 	}
-	defer sm.Close()
+	err = sm.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the database statement")
+	}
 	_, err = sm.Exec(a.Username.String(), passwordHash, a.Subdomain, a.AllowFrom.JSON())
 	if err == nil {
 		err = d.NewTXTValuesInTransaction(tx, a.Subdomain)
@@ -231,12 +237,18 @@ func (d *acmedb) GetByUsername(u uuid.UUID) (ACMETxt, error) {
 	if err != nil {
 		return ACMETxt{}, err
 	}
-	defer sm.Close()
+	err = sm.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the database statement")
+	}
 	rows, err := sm.Query(u.String())
 	if err != nil {
 		return ACMETxt{}, err
 	}
-	defer rows.Close()
+	err = rows.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the database row")
+	}
 
 	// It will only be one row though
 	for rows.Next() {
@@ -268,12 +280,18 @@ func (d *acmedb) GetTXTForDomain(domain string) ([]string, error) {
 	if err != nil {
 		return txts, err
 	}
-	defer sm.Close()
+	err = sm.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the database statement")
+	}
 	rows, err := sm.Query(domain)
 	if err != nil {
 		return txts, err
 	}
-	defer rows.Close()
+	err = rows.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the database row")
+	}
 
 	for rows.Next() {
 		var rtxt string
@@ -306,7 +324,10 @@ func (d *acmedb) Update(a ACMETxtPost) error {
 	if err != nil {
 		return err
 	}
-	defer sm.Close()
+	err = sm.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the database statement")
+	}
 	_, err = sm.Exec(a.Value, timenow, a.Subdomain)
 	if err != nil {
 		return err
@@ -336,7 +357,10 @@ func getModelFromRow(r *sql.Rows) (ACMETxt, error) {
 }
 
 func (d *acmedb) Close() {
-	d.DB.Close()
+	err := d.DB.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in closing the database connection")
+	}
 }
 
 func (d *acmedb) GetBackend() *sql.DB {
