@@ -94,7 +94,7 @@ func (d *DNSServer) handleRequest(w dns.ResponseWriter, r *dns.Msg) {
 	if opt != nil {
 		if opt.Version() != 0 {
 			// Only EDNS0 is standardized
-			m.MsgHdr.Rcode = dns.RcodeBadVers
+			m.Rcode = dns.RcodeBadVers
 			m.SetEdns0(512, false)
 		} else {
 			// We can safely do this as we know that we're not setting other OPT RRs within acme-dns.
@@ -118,13 +118,13 @@ func (d *DNSServer) readQuery(m *dns.Msg) {
 			if auth {
 				authoritative = auth
 			}
-			m.MsgHdr.Rcode = rc
+			m.Rcode = rc
 			m.Answer = append(m.Answer, rr...)
 		}
 	}
-	m.MsgHdr.Authoritative = authoritative
+	m.Authoritative = authoritative
 	if authoritative {
-		if m.MsgHdr.Rcode == dns.RcodeNameError {
+		if m.Rcode == dns.RcodeNameError {
 			m.Ns = append(m.Ns, d.SOA)
 		}
 	}
