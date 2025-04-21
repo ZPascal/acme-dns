@@ -21,7 +21,6 @@ func NewChallengeProvider(servers []*DNSServer) ChallengeProvider {
 func (c *ChallengeProvider) AppendRecords(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
 	var token string
 	for _, item := range recs {
-
 		log.WithFields(log.Fields{"name": item.Name, "value": item.Value, "type": item.Type}).Info("Attempting to set dns record")
 		if strings.Contains(item.Name, "acme-challenge") {
 			token = item.Value
