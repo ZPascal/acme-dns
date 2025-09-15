@@ -8,7 +8,7 @@ require (
 	github.com/caddyserver/certmagic v0.25.0
 	github.com/erikstmartin/go-testdb v0.0.0-20160219214506-8d10e4a1bae5
 	github.com/gavv/httpexpect v2.0.0+incompatible
-	github.com/go-acme/lego/v4 v4.25.2
+	github.com/go-acme/lego/v4 v4.26.0
 	github.com/google/uuid v1.6.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/lib/pq v1.10.9
@@ -34,7 +34,6 @@ require (
 	github.com/imkira/go-interpol v1.1.0 // indirect
 	github.com/klauspost/compress v1.15.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mholt/acmez/v3 v3.1.3 // indirect
 	github.com/moul/http2curl v1.0.0 // indirect
@@ -60,7 +59,7 @@ require (
 	go.uber.org/zap/exp v0.3.0 // indirect
 	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b // indirect
 	golang.org/x/mod v0.27.0 // indirect
-	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
