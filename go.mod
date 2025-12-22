@@ -8,7 +8,7 @@ require (
 	github.com/caddyserver/certmagic v0.25.0
 	github.com/erikstmartin/go-testdb v0.0.0-20160219214506-8d10e4a1bae5
 	github.com/gavv/httpexpect v2.0.0+incompatible
-	github.com/go-acme/lego/v4 v4.29.0
+	github.com/go-acme/lego/v4 v4.30.1
 	github.com/google/uuid v1.6.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/lib/pq v1.10.9
@@ -59,7 +59,7 @@ require (
 	go.uber.org/zap/exp v0.3.0 // indirect
 	golang.org/x/exp v0.0.0-20250819193227-8b4c13bb791b // indirect
 	golang.org/x/mod v0.30.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
