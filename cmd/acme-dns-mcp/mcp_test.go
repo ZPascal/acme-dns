@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 )
@@ -46,5 +48,36 @@ password = "file-pass"
 	cfg := loadConfig(f.Name())
 	if cfg.BaseURL != "https://local.example.com" {
 		t.Errorf("BaseURL from file: got %q", cfg.BaseURL)
+	}
+}
+
+func TestToolHealthCheck(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := mcpConfig{BaseURL: srv.URL}
+	result, err := callTool(cfg, "health_check", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("health_check failed: %v", err)
+	}
+	if result["status"] != "ok" {
+		t.Errorf("expected status ok, got %v", result)
+	}
+}
+
+func TestToolListTools(t *testing.T) {
+	tools := listTools()
+	names := make(map[string]bool)
+	for _, tool := range tools {
+		names[tool.Name] = true
+	}
+	for _, expected := range []string{"register_subdomain", "update_txt_record", "list_dns_records", "create_dns_record", "update_dns_record", "delete_dns_record", "health_check"} {
+		if !names[expected] {
+			t.Errorf("missing tool: %s", expected)
+		}
 	}
 }
