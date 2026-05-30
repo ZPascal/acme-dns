@@ -202,6 +202,18 @@ With the credentials, you can update the TXT response in the service to match th
 }
 ```
 
+#### Rate limiting
+
+`/register` is rate limited per source IP (`register_ratelimit` in `[api]`, default `10` registrations per minute; `0` disables the limit). The limit is enforced in-memory per instance, keyed by the client IP (or the first address from `header_name` when `use_header = true`). Exceeding it returns:
+
+`Status: 429 Too Many Requests`
+
+```json
+{
+  "error": "rate_limit_exceeded"
+}
+```
+
 ### Update endpoint
 
 The method allows you to update the TXT answer contents of your unique subdomain. Usually carried automatically by automated ACME client.
@@ -270,6 +282,14 @@ See the INSTALL section for information on how to do this.
    6. Enable acme-dns on boot: `sudo systemctl enable acme-dns.service`.
    7. Run acme-dns: `sudo systemctl start acme-dns.service`.
 6. If you did not install the systemd service, run `acme-dns`. Please note that acme-dns needs to open a privileged port (53, domain), so it needs to be run with elevated privileges.
+
+### Upgrading to v1.0.0
+
+**Breaking Changes:**
+
+- **CORS Configuration**: The default `corsorigins` has changed from `["*"]` (allow all) to `[]` (deny all). This is a security-focused change to deny cross-origin requests by default.
+  - If you rely on the previous wildcard CORS behavior, explicitly set `corsorigins = ["*"]` in your `[api]` config section.
+  - If you're integrating acme-dns with a web application on a different origin, configure `corsorigins` with the specific origins you trust.
 
 ### Using Docker
 
@@ -394,13 +414,14 @@ acme_cache_dir = "api-certs"
 # optional e-mail address to which Let's Encrypt will send expiration notices for the API's cert
 notification_email = ""
 # CORS AllowOrigins, wildcards can be used
-corsorigins = [
-    "*"
-]
+# NOTE: v1.0.0+ defaults to [] (deny all). Set to ["*"] to allow all origins.
+corsorigins = []
 # use HTTP header to get the client ip
 use_header = false
 # header name to pull the ip address / list of ip addresses from
 header_name = "X-Forwarded-For"
+# max registrations per minute per source IP on the /register endpoint (0 = unlimited)
+register_ratelimit = 10
 # Admin API — leave token empty to disable admin endpoints
 # token = "your-secret-admin-token-here"
 token = ""
@@ -416,6 +437,149 @@ logtype = "stdout"
 logformat = "text"
 ```
 
+## High Availability Deployment
+
+Multiple acme-dns instances run simultaneously behind a load balancer. All instances share one PostgreSQL database. The HTTP API is stateless — no session affinity is required. DNS can be distributed across instances using round-robin NS records.
+
+### Prerequisites
+
+- PostgreSQL 14+ (primary/replica HA, e.g. PostgreSQL cluster, RDS Multi-AZ, Cloud SQL HA)
+- A load balancer for HTTP: Nginx, Apache2, or cloud ALB (AWS ELB, GCP HTTPS LB)
+- At least 2 acme-dns instances
+
+### HA Database Configuration
+
+All instances share the same connection string:
+
+```toml
+[database]
+engine = "postgres"
+connection = "postgres://acmedns:password@pg-primary.internal/acmedns_db"
+```
+
+Recommended PostgreSQL settings (`postgresql.conf`):
+```
+max_connections = 100          # scale with instance count
+idle_in_transaction_session_timeout = 30s
+```
+
+Database migrations run automatically on startup. Run only **one instance first** on initial deploy, then start the others once the schema is ready.
+
+### HA Instance Configuration
+
+Each instance has an identical `config.cfg` except for `[api].ip` (bind address per host). Key settings:
+
+```toml
+[database]
+engine = "postgres"
+connection = "postgres://acmedns:password@pg-primary.internal/acmedns_db"
+
+[api]
+ip = "0.0.0.0"     # or specific interface
+port = "443"
+tls = "cert"       # manage certs externally in HA setups
+```
+
+Do **not** use `tls = "letsencrypt"` on multiple instances — each would race for certificate renewal. Use a shared cert (wildcard or SAN) or terminate TLS at the load balancer.
+
+### DNS Load Balancing
+
+Configure multiple A records for the acme-dns NS hostname with a low TTL (60s) for fast failover:
+
+```
+auth.example.org.  60  IN  A  203.0.113.1   ; instance 1
+auth.example.org.  60  IN  A  203.0.113.2   ; instance 2
+```
+
+Resolvers will round-robin between instances for DNS queries.
+
+### HTTP API Load Balancing
+
+#### Nginx Example
+
+```nginx
+upstream acmedns_instances {
+    server 10.0.0.1:443;
+    server 10.0.0.2:443;
+}
+
+server {
+    listen 443 ssl;
+    ssl_certificate     /etc/ssl/acmedns.pem;
+    ssl_certificate_key /etc/ssl/acmedns.key;
+
+    location /health {
+        proxy_pass https://acmedns_instances/health;
+        access_log off;
+    }
+
+    location / {
+        proxy_pass https://acmedns_instances;
+        proxy_ssl_verify off;
+    }
+}
+```
+
+#### Apache2 Example
+
+```apache
+<VirtualHost *:443>
+    SSLEngine on
+    SSLCertificateFile /etc/ssl/acmedns.pem
+    SSLCertificateKeyFile /etc/ssl/acmedns.key
+
+    <Proxy "balancer://acmedns-instances">
+        BalancerMember "https://10.0.0.1:443"
+        BalancerMember "https://10.0.0.2:443"
+        ProxySet lbmethod=byrequests
+    </Proxy>
+
+    ProxyPreserveHost On
+    ProxyPass "/" "balancer://acmedns-instances/"
+    ProxyPassReverse "/" "balancer://acmedns-instances/"
+</VirtualHost>
+```
+
+### HA Health Check
+
+The `/health` endpoint returns HTTP 200 when the instance is ready. Use it for:
+- Load balancer health probes (see Nginx/Apache2 config above)
+- Kubernetes readiness/liveness probes:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 3
+  periodSeconds: 5
+```
+
+### Failure Modes
+
+| Failure | Impact | Recovery |
+|---------|--------|----------|
+| One instance dies | DNS queries and HTTP API handled by remaining instances | Automatic — load balancer stops routing to failed instance |
+| PostgreSQL unreachable | HTTP API returns 500; DNS continues serving cached records from resolver caches | Restore PostgreSQL; instances reconnect automatically on next request |
+| PostgreSQL replica failover | Transient errors during failover window | Instances retry automatically on next request |
+
+### Upgrade Procedure (Rolling Restart)
+
+1. Start one instance first; migrations are idempotent and run automatically
+2. Stop and restart instances one at a time, verifying `/health` before moving to the next
+3. DNS resolvers cache responses — TTL (default 60s for NS records) means no visible downtime
+
+### Security Notes in HA
+
+- Rate limiting (`register_ratelimit`) is per-instance, per-IP (in-memory). In active-active, a single IP can register up to `register_ratelimit * N` times per minute across N instances. For stricter enforcement, place rate limiting at the load balancer (nginx `limit_req`).
+- All instances share the same `[api.admin].token` — rotate it by updating all instances' configs and restarting them.
+
 ## HTTPS API
 
 The RESTful acme-dns API can be exposed over HTTPS in two ways:
@@ -425,13 +589,13 @@ The RESTful acme-dns API can be exposed over HTTPS in two ways:
 2. Using `tls = "cert"` and providing your own HTTPS certificate chain and
    private key with `tls_cert_fullchain` and `tls_cert_privkey`.
 
-Where possible the first option is recommended. This is the easiest and safest
+Where possible, the first option is recommended. This is the easiest and safest
 way to have acme-dns expose its API over HTTPS.
 
 **Warning**: If you choose to use `tls = "cert"` you must take care that the
 certificate _does not expire_! If it does and the ACME client you use to issue the
-certificate depends on the ACME DNS API to update TXT records you will be stuck
-in a position where the API certificate has expired but it can't be renewed
+certificate depends on the ACME DNS API to update TXT records, you will be stuck
+in a position where the API certificate has expired, but it can't be renewed
 because the ACME client will refuse to connect to the ACME DNS API it needs to
 use for the renewal.
 
@@ -449,7 +613,7 @@ use for the renewal.
 ### Authentication hooks
 
 - acme-dns-client with Certbot authentication hook: [https://github.com/acme-dns/acme-dns-client](https://github.com/acme-dns/acme-dns-client)
-- Certbot authentication hook in Python: [https://github.com/zpascal/acme-dns-certbot-joohoi](https://github.com/zpascal/acme-dns-certbot-joohoi)
+- Certbot authentication hook in Python: [https://github.com/joohoi/acme-dns-certbot-joohoi](https://github.com/joohoi/acme-dns-certbot-joohoi)
 - Certbot authentication hook in Go: [https://github.com/koesie10/acme-dns-certbot-hook](https://github.com/koesie10/acme-dns-certbot-hook)
 
 ### Libraries

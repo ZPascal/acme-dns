@@ -55,7 +55,7 @@ func setupRouter(debug bool, noauth bool) http.Handler {
 		Domain:      "",
 		Port:        "8080",
 		TLS:         "none",
-		CorsOrigins: []string{"*"},
+		CorsOrigins: Config.API.CorsOrigins,
 		UseHeader:   true,
 		HeaderName:  "X-Forwarded-For",
 	}
@@ -64,12 +64,11 @@ func setupRouter(debug bool, noauth bool) http.Handler {
 		Database: dbcfg,
 	}
 	Config = dnscfg
-	c := cors.New(cors.Options{
-		AllowedOrigins:     Config.API.CorsOrigins,
-		AllowedMethods:     []string{"GET", "POST"},
-		OptionsPassthrough: false,
-		Debug:              Config.General.Debug,
-	})
+	c := cors.New(buildCORSOptions(
+		Config.API.CorsOrigins,
+		[]string{"GET", "POST"},
+		nil,
+	))
 	api.POST("/register", webRegisterPost)
 	api.GET("/health", healthCheck)
 	if noauth {
@@ -600,6 +599,70 @@ func TestAdminUpdateRecord(t *testing.T) {
 func TestAdminWrongToken(t *testing.T) {
 	_, e := setupAdminRouter(t, "correct-token")
 	e.GET("/admin/records").WithHeader("Authorization", "Bearer wrong-token").Expect().Status(http.StatusUnauthorized)
+}
+
+func TestRegisterRateLimit(t *testing.T) {
+	// Use a very low limit to trigger rate limiting quickly
+	Config.API.RegisterRateLimit = 2
+	Config.API.UseHeader = true
+	Config.API.HeaderName = "X-Forwarded-For"
+
+	limiter := newRateLimiter(Config.API.RegisterRateLimit)
+	defer limiter.stop()
+
+	api2 := httprouter.New()
+	api2.POST("/register", rateLimitMiddleware(limiter, webRegisterPost))
+	c := cors.New(cors.Options{AllowedOrigins: []string{"*"}, AllowedMethods: []string{"GET", "POST"}})
+	server2 := httptest.NewServer(c.Handler(api2))
+	defer server2.Close()
+	e2 := getExpect(t, server2)
+
+	// First two should succeed
+	e2.POST("/register").WithHeader("X-Forwarded-For", "10.0.0.1").Expect().Status(http.StatusCreated)
+	e2.POST("/register").WithHeader("X-Forwarded-For", "10.0.0.1").Expect().Status(http.StatusCreated)
+	// Third from same IP should be rate limited
+	e2.POST("/register").WithHeader("X-Forwarded-For", "10.0.0.1").Expect().Status(http.StatusTooManyRequests)
+	// Different IP should still work
+	e2.POST("/register").WithHeader("X-Forwarded-For", "10.0.0.2").Expect().Status(http.StatusCreated)
+}
+
+func TestCORSEmptyOriginsDeniesCrossOrigin(t *testing.T) {
+	// corsorigins = [] must deny all cross-origin requests (no ACAO header).
+	Config.API.CorsOrigins = []string{}
+	t.Cleanup(func() { Config.API.CorsOrigins = nil })
+	router := setupRouter(false, false)
+	server := httptest.NewServer(router)
+	defer server.Close()
+	e := getExpect(t, server)
+
+	resp := e.GET("/health").WithHeader("Origin", "https://evil.com").Expect().Status(http.StatusOK).Raw()
+	if resp.Header.Get("Access-Control-Allow-Origin") != "" {
+		t.Errorf("expected no Access-Control-Allow-Origin header with empty corsorigins, got %q",
+			resp.Header.Get("Access-Control-Allow-Origin"))
+	}
+}
+
+func TestCORSConfiguredOriginAllowed(t *testing.T) {
+	// A listed origin must receive the Access-Control-Allow-Origin header.
+	Config.API.CorsOrigins = []string{"https://trusted.example.com"}
+	t.Cleanup(func() { Config.API.CorsOrigins = nil })
+	router := setupRouter(false, false)
+	server := httptest.NewServer(router)
+	defer server.Close()
+	e := getExpect(t, server)
+
+	resp := e.GET("/health").WithHeader("Origin", "https://trusted.example.com").Expect().Status(http.StatusOK).Raw()
+	got := resp.Header.Get("Access-Control-Allow-Origin")
+	if got != "https://trusted.example.com" {
+		t.Errorf("expected Access-Control-Allow-Origin: https://trusted.example.com, got %q", got)
+	}
+
+	// Unlisted origin must not receive the header.
+	resp2 := e.GET("/health").WithHeader("Origin", "https://evil.com").Expect().Status(http.StatusOK).Raw()
+	if resp2.Header.Get("Access-Control-Allow-Origin") != "" {
+		t.Errorf("expected no Access-Control-Allow-Origin for unlisted origin, got %q",
+			resp2.Header.Get("Access-Control-Allow-Origin"))
+	}
 }
 
 func TestAdminCreateRecordInvalidValue(t *testing.T) {

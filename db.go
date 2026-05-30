@@ -200,11 +200,22 @@ func (d *acmedb) handleDBUpgradeTo2() error {
 
 // Create two rows for subdomain to the txt table
 func (d *acmedb) NewTXTValuesInTransaction(tx *sql.Tx, subdomain string) error {
-	var err error
-	instr := fmt.Sprintf("INSERT INTO txt (Subdomain, LastUpdate) values('%s', 0)", subdomain)
-	_, _ = tx.Exec(instr)
-	_, _ = tx.Exec(instr)
-	return err
+	stmt := "INSERT INTO txt (Subdomain, LastUpdate) values($1, 0)"
+	if Config.Database.Engine == "sqlite3" {
+		stmt = getSQLiteStmt(stmt)
+	}
+	ps, err := tx.Prepare(stmt)
+	if err != nil {
+		return err
+	}
+	defer closeStatement(ps)
+	if _, err := ps.Exec(subdomain); err != nil {
+		return err
+	}
+	if _, err := ps.Exec(subdomain); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *acmedb) Register(afrom cidrslice) (ACMETxt, error) {
@@ -222,7 +233,7 @@ func (d *acmedb) Register(afrom cidrslice) (ACMETxt, error) {
 	}()
 	a := newACMETxt()
 	a.AllowFrom = afrom.ValidEntries()
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(a.Password), 10)
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(a.Password), 12)
 	regSQL := `
     INSERT INTO records(
         Username,
@@ -460,10 +471,14 @@ func (d *acmedb) Close() {
 }
 
 func (d *acmedb) GetBackend() *sql.DB {
+	d.Lock()
+	defer d.Unlock()
 	return d.DB
 }
 
 func (d *acmedb) SetBackend(backend *sql.DB) {
+	d.Lock()
+	defer d.Unlock()
 	d.DB = backend
 }
 

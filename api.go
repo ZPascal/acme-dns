@@ -6,15 +6,34 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/miekg/dns"
+	"github.com/rs/cors"
 	log "github.com/sirupsen/logrus"
 	"io"
-	"net/http"
-	"strings"
-	"time"
 )
+
+// buildCORSOptions returns cors.Options that deny all cross-origin requests when
+// origins is empty, or allow exactly the listed origins otherwise.
+func buildCORSOptions(origins []string, methods, headers []string) cors.Options {
+	opts := cors.Options{
+		AllowedMethods: methods,
+		AllowedHeaders: headers,
+	}
+	if len(origins) == 0 {
+		opts.AllowOriginFunc = func(string) bool { return false }
+	} else {
+		opts.AllowedOrigins = origins
+	}
+	return opts
+}
 
 // toFQDN ensures a DNS name ends with a trailing dot for consistent storage and lookup.
 func toFQDN(name string) string {
@@ -218,6 +237,7 @@ func adminCreateRecord(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 		_, _ = w.Write(jsonError("invalid_record_value"))
 		return
 	}
+
 	ttl := req.TTL
 	if ttl == 0 {
 		ttl = 300
@@ -338,4 +358,98 @@ func adminDeleteRecord(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// rateBucket holds a per-IP request count and reset time.
+type rateBucket struct {
+	count   int
+	resetAt time.Time
+}
+
+// rateLimiter is an in-memory token bucket rate limiter keyed by source IP.
+type rateLimiter struct {
+	mu      sync.Mutex
+	buckets map[string]*rateBucket
+	limit   int
+	window  time.Duration
+	done    chan struct{}
+}
+
+func newRateLimiter(limit int) *rateLimiter {
+	rl := &rateLimiter{
+		buckets: make(map[string]*rateBucket),
+		limit:   limit,
+		window:  time.Minute,
+		done:    make(chan struct{}),
+	}
+	go rl.cleanup()
+	return rl
+}
+
+func (rl *rateLimiter) allow(ip string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	now := time.Now()
+	b, ok := rl.buckets[ip]
+	if !ok || now.After(b.resetAt) {
+		rl.buckets[ip] = &rateBucket{count: 1, resetAt: now.Add(rl.window)}
+		return true
+	}
+	if b.count >= rl.limit {
+		return false
+	}
+	b.count++
+	return true
+}
+
+func (rl *rateLimiter) cleanup() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			rl.mu.Lock()
+			now := time.Now()
+			for ip, b := range rl.buckets {
+				if now.After(b.resetAt) {
+					delete(rl.buckets, ip)
+				}
+			}
+			rl.mu.Unlock()
+		case <-rl.done:
+			return
+		}
+	}
+}
+
+func (rl *rateLimiter) stop() {
+	close(rl.done)
+}
+
+func rateLimitMiddleware(rl *rateLimiter, next httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		if rl == nil {
+			next(w, r, ps)
+			return
+		}
+		ip := r.RemoteAddr
+		if Config.API.UseHeader {
+			ips := getIPListFromHeader(r.Header.Get(Config.API.HeaderName))
+			if len(ips) > 0 {
+				ip = ips[0]
+			}
+		} else {
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err == nil {
+				ip = host
+			}
+		}
+		if !rl.allow(ip) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write(jsonError("rate_limit_exceeded"))
+			return
+		}
+		next(w, r, ps)
+	}
 }
