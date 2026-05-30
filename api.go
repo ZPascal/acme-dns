@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/subtle"
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,9 @@ import (
 	"strings"
 	"time"
 )
+
+//go:embed openapi.json
+var openapiSpec []byte
 
 // toFQDN ensures a DNS name ends with a trailing dot for consistent storage and lookup.
 func toFQDN(name string) string {
@@ -133,6 +137,12 @@ func webUpdatePost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) 
 // Endpoint used to check the readiness and/or liveness (health) of the server.
 func healthCheck(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.WriteHeader(http.StatusOK)
+}
+
+func serveOpenAPI(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(openapiSpec)
 }
 
 // adminRecordRequest is the request body for creating/updating a DNS record
