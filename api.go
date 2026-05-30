@@ -200,7 +200,7 @@ func adminCreateRecord(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	}
 	rec := DNSRecord{
 		ID:      uuid.New().String(),
-		Name:    req.Name,
+		Name:    strings.ToLower(req.Name),
 		Type:    req.Type,
 		Value:   req.Value,
 		TTL:     ttl,
@@ -255,7 +255,7 @@ func adminUpdateRecord(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	if ttl == 0 {
 		ttl = 300
 	}
-	rec := DNSRecord{ID: id, Name: req.Name, Type: req.Type, Value: req.Value, TTL: ttl}
+	rec := DNSRecord{ID: id, Name: strings.ToLower(req.Name), Type: req.Type, Value: req.Value, TTL: ttl}
 	if err := DB.UpdateRecord(rec); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		if errors.Is(err, sql.ErrNoRows) {
