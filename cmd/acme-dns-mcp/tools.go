@@ -77,7 +77,7 @@ func callTool(cfg mcpConfig, name string, args map[string]interface{}) (map[stri
 	return nil, fmt.Errorf("unknown tool: %s", name)
 }
 
-func doRequest(cfg mcpConfig, method, path string, body interface{}, headers map[string]string) (map[string]interface{}, int, error) {
+func doRequest(cfg mcpConfig, method, path string, body interface{}, headers map[string]string) (interface{}, int, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -101,7 +101,7 @@ func doRequest(cfg mcpConfig, method, path string, body interface{}, headers map
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
-	var result map[string]interface{}
+	var result interface{}
 	_ = json.NewDecoder(resp.Body).Decode(&result)
 	if result == nil {
 		result = map[string]interface{}{}
@@ -122,7 +122,13 @@ func toolHealthCheck(cfg mcpConfig) (map[string]interface{}, error) {
 
 func toolRegister(cfg mcpConfig, args map[string]interface{}) (map[string]interface{}, error) {
 	result, _, err := doRequest(cfg, "POST", "/register", args, nil)
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+	if m, ok := result.(map[string]interface{}); ok {
+		return m, nil
+	}
+	return map[string]interface{}{"result": result}, nil
 }
 
 func toolUpdateTXT(cfg mcpConfig, args map[string]interface{}) (map[string]interface{}, error) {
@@ -134,7 +140,13 @@ func toolUpdateTXT(cfg mcpConfig, args map[string]interface{}) (map[string]inter
 		"X-Api-Key":  cfg.Password,
 	}
 	result, _, err := doRequest(cfg, "POST", "/update", args, headers)
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+	if m, ok := result.(map[string]interface{}); ok {
+		return m, nil
+	}
+	return map[string]interface{}{"result": result}, nil
 }
 
 func toolListRecords(cfg mcpConfig, args map[string]interface{}) (map[string]interface{}, error) {
@@ -154,7 +166,11 @@ func toolListRecords(cfg mcpConfig, args map[string]interface{}) (map[string]int
 	}
 	headers := map[string]string{"Authorization": "Bearer " + cfg.AdminToken}
 	result, _, err := doRequest(cfg, "GET", path, nil, headers)
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+	// GET /admin/records returns a JSON array — wrap it for uniform map return
+	return map[string]interface{}{"records": result}, nil
 }
 
 func toolCreateRecord(cfg mcpConfig, args map[string]interface{}) (map[string]interface{}, error) {
@@ -163,7 +179,13 @@ func toolCreateRecord(cfg mcpConfig, args map[string]interface{}) (map[string]in
 	}
 	headers := map[string]string{"Authorization": "Bearer " + cfg.AdminToken}
 	result, _, err := doRequest(cfg, "POST", "/admin/records", args, headers)
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+	if m, ok := result.(map[string]interface{}); ok {
+		return m, nil
+	}
+	return map[string]interface{}{"result": result}, nil
 }
 
 func toolUpdateRecord(cfg mcpConfig, args map[string]interface{}) (map[string]interface{}, error) {
@@ -176,7 +198,13 @@ func toolUpdateRecord(cfg mcpConfig, args map[string]interface{}) (map[string]in
 	}
 	headers := map[string]string{"Authorization": "Bearer " + cfg.AdminToken}
 	result, _, err := doRequest(cfg, "PUT", "/admin/records/"+id, args, headers)
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+	if m, ok := result.(map[string]interface{}); ok {
+		return m, nil
+	}
+	return map[string]interface{}{"result": result}, nil
 }
 
 func toolDeleteRecord(cfg mcpConfig, args map[string]interface{}) (map[string]interface{}, error) {
