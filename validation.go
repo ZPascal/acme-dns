@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"regexp"
 	"unicode/utf8"
 
@@ -43,6 +44,37 @@ func validTXT(s string) bool {
 func correctPassword(pw string, hash string) bool {
 	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)); err == nil {
 		return true
+	}
+	return false
+}
+
+func validRecordType(t string) bool {
+	switch t {
+	case "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA", "PTR":
+		return true
+	}
+	return false
+}
+
+func validTTL(ttl int) bool {
+	return ttl >= 1 && ttl <= 86400
+}
+
+func validRecordValue(rtype, value string) bool {
+	if value == "" {
+		return false
+	}
+	switch rtype {
+	case "A":
+		ip := net.ParseIP(value)
+		return ip != nil && ip.To4() != nil
+	case "AAAA":
+		ip := net.ParseIP(value)
+		return ip != nil && ip.To4() == nil
+	case "CNAME", "MX", "NS", "PTR", "SRV":
+		return len(value) > 0
+	case "TXT", "CAA":
+		return len(value) > 0
 	}
 	return false
 }
