@@ -131,6 +131,7 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsServers []*DNSServer)
 	}
 	api.POST("/update", Auth(webUpdatePost))
 	api.GET("/health", healthCheck)
+	api.GET("/openapi.json", serveOpenAPI)
 	if config.API.Admin.Token != "" {
 		api.GET("/admin/records", adminBearerMiddleware(adminListRecords))
 		api.POST("/admin/records", adminBearerMiddleware(adminCreateRecord))
