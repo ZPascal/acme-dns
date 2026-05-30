@@ -149,6 +149,7 @@ func TestValidRecordValue(t *testing.T) {
 		{"A", "1.2.3.4", true},
 		{"A", "256.1.1.1", false},
 		{"A", "not-an-ip", false},
+		{"A", "::ffff:1.2.3.4", false},
 		{"AAAA", "2001:db8::1", true},
 		{"AAAA", "1.2.3.4", false},
 		{"CNAME", "example.com", true},
@@ -156,11 +157,15 @@ func TestValidRecordValue(t *testing.T) {
 		{"MX", "mail.example.com", true},
 		{"MX", "", false},
 		{"NS", "ns1.example.com", true},
+		{"NS", "", false},
 		{"TXT", "any text value here", true},
 		{"TXT", "", false},
 		{"SRV", "_sip._tcp.example.com", true},
+		{"SRV", "", false},
 		{"CAA", "0 issue \"letsencrypt.org\"", true},
+		{"CAA", "", false},
 		{"PTR", "host.example.com", true},
+		{"PTR", "", false},
 	}
 	for _, tc := range cases {
 		got := validRecordValue(tc.rtype, tc.value)

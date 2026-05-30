@@ -3,6 +3,7 @@ package main
 import (
 	"net"
 	"regexp"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -48,8 +49,8 @@ func correctPassword(pw string, hash string) bool {
 	return false
 }
 
-func validRecordType(t string) bool {
-	switch t {
+func validRecordType(typ string) bool {
+	switch typ {
 	case "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA", "PTR":
 		return true
 	}
@@ -67,14 +68,12 @@ func validRecordValue(rtype, value string) bool {
 	switch rtype {
 	case "A":
 		ip := net.ParseIP(value)
-		return ip != nil && ip.To4() != nil
+		return ip != nil && ip.To4() != nil && !strings.Contains(value, ":")
 	case "AAAA":
 		ip := net.ParseIP(value)
 		return ip != nil && ip.To4() == nil
-	case "CNAME", "MX", "NS", "PTR", "SRV":
-		return len(value) > 0
-	case "TXT", "CAA":
-		return len(value) > 0
+	case "CNAME", "MX", "NS", "PTR", "SRV", "TXT", "CAA":
+		return true // non-empty check handled above; structural validation deferred to dns.NewRR
 	}
 	return false
 }
