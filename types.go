@@ -73,6 +73,16 @@ type acmedb struct {
 	DB *sql.DB
 }
 
+// DNSRecord represents a managed DNS record
+type DNSRecord struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Value   string `json:"value"`
+	TTL     int    `json:"ttl"`
+	Created int64  `json:"created"`
+}
+
 type database interface {
 	Init(string, string) error
 	Register(cidrslice) (ACMETxt, error)

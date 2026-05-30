@@ -321,9 +321,17 @@ func TestUpdateRecord(t *testing.T) {
 	}
 }
 
+func TestUpdateRecordNotFound(t *testing.T) {
+	err := DB.UpdateRecord(DNSRecord{ID: "nonexistent", Name: "x.example.com", Type: "A", Value: "1.1.1.1", TTL: 60})
+	if err != sql.ErrNoRows {
+		t.Fatalf("expected sql.ErrNoRows for missing ID, got %v", err)
+	}
+}
+
 func TestDeleteRecord(t *testing.T) {
 	rec := DNSRecord{ID: "del-1", Name: "b.example.com", Type: "A", Value: "3.3.3.3", TTL: 60, Created: 0}
 	_ = DB.CreateRecord(rec)
+	t.Cleanup(func() { _ = DB.DeleteRecord("del-1") })
 
 	err := DB.DeleteRecord("del-1")
 	if err != nil {

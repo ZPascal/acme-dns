@@ -58,16 +58,6 @@ var dnsRecordsTable = `
 		created INTEGER NOT NULL
 	);`
 
-// DNSRecord represents a managed DNS record
-type DNSRecord struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Type    string `json:"type"`
-	Value   string `json:"value"`
-	TTL     int    `json:"ttl"`
-	Created int64  `json:"created"`
-}
-
 // getSQLiteStmt replaces all PostgreSQL prepared statement placeholders (eg. $1, $2) with SQLite variant "?"
 func getSQLiteStmt(s string) string {
 	re, _ := regexp.Compile(`\$[0-9]`)
@@ -365,6 +355,9 @@ func (d *acmedb) ListRecords(filterType, filterName string) ([]DNSRecord, error)
 		}
 		records = append(records, r)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	if records == nil {
 		records = []DNSRecord{}
 	}
@@ -378,8 +371,14 @@ func (d *acmedb) UpdateRecord(rec DNSRecord) error {
 	if Config.Database.Engine == "sqlite3" {
 		stmt = getSQLiteStmt(stmt)
 	}
-	_, err := d.DB.Exec(stmt, rec.Name, rec.Type, rec.Value, rec.TTL, rec.ID)
-	return err
+	result, err := d.DB.Exec(stmt, rec.Name, rec.Type, rec.Value, rec.TTL, rec.ID)
+	if err != nil {
+		return err
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (d *acmedb) DeleteRecord(id string) error {
