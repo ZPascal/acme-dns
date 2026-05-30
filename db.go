@@ -428,6 +428,8 @@ func (d *acmedb) GetBackend() *sql.DB {
 }
 
 func (d *acmedb) SetBackend(backend *sql.DB) {
+	d.Lock()
+	defer d.Unlock()
 	d.DB = backend
 }
 
