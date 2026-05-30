@@ -49,6 +49,26 @@ func correctPassword(pw string, hash string) bool {
 	return false
 }
 
+// hostnameLabelRegExp matches a single DNS label: alphanumerics and underscores,
+// with hyphens allowed only in the interior (not leading/trailing).
+var hostnameLabelRegExp = regexp.MustCompile(`^[A-Za-z0-9_]([A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?$`)
+
+func validRecordName(s string) bool {
+	if s == "" || len(s) > 253 {
+		return false
+	}
+	labels := strings.Split(strings.TrimSuffix(s, "."), ".")
+	for _, label := range labels {
+		if label == "*" {
+			continue
+		}
+		if !hostnameLabelRegExp.MatchString(label) {
+			return false
+		}
+	}
+	return true
+}
+
 func validRecordType(typ string) bool {
 	switch typ {
 	case "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA", "PTR":

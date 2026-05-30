@@ -326,6 +326,36 @@ func TestAnswerManagedNODATA(t *testing.T) {
 	}
 }
 
+func TestAnswerManagedMXRecord(t *testing.T) {
+	// MX value must be "<preference> <exchange>", e.g. "0 mail.example.com."
+	rec := DNSRecord{
+		ID: "mx-test-1", Name: "mx.auth.example.org.", Type: "MX", Value: "10 mail.example.org.", TTL: 300, Created: 0,
+	}
+	if err := DB.CreateRecord(rec); err != nil {
+		t.Fatalf("CreateRecord: %v", err)
+	}
+	t.Cleanup(func() { _ = DB.DeleteRecord("mx-test-1") })
+
+	q := dns.Question{Name: "mx.auth.example.org.", Qtype: dns.TypeMX, Qclass: dns.ClassINET}
+	rrs, rcode, _, err := dnsserver.answer(q)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rcode != dns.RcodeSuccess {
+		t.Fatalf("expected NOERROR for MX query, got %s", dns.RcodeToString[rcode])
+	}
+	if len(rrs) != 1 {
+		t.Fatalf("expected exactly one RR in answer, got %d", len(rrs))
+	}
+	mx, ok := rrs[0].(*dns.MX)
+	if !ok {
+		t.Fatalf("expected *dns.MX, got %T", rrs[0])
+	}
+	if mx.Preference != 10 || mx.Mx != "mail.example.org." {
+		t.Fatalf("expected preference 10 and mx mail.example.org., got preference %d and mx %s", mx.Preference, mx.Mx)
+	}
+}
+
 func TestAnswerManagedCAARecord(t *testing.T) {
 	// CAA value must not be quote-wrapped — it has its own tag-value structure.
 	rec := DNSRecord{
