@@ -333,6 +333,7 @@ type rateLimiter struct {
 	buckets map[string]*rateBucket
 	limit   int
 	window  time.Duration
+	done    chan struct{}
 }
 
 func newRateLimiter(limit int) *rateLimiter {
@@ -340,6 +341,7 @@ func newRateLimiter(limit int) *rateLimiter {
 		buckets: make(map[string]*rateBucket),
 		limit:   limit,
 		window:  time.Minute,
+		done:    make(chan struct{}),
 	}
 	go rl.cleanup()
 	return rl
@@ -362,16 +364,27 @@ func (rl *rateLimiter) allow(ip string) bool {
 }
 
 func (rl *rateLimiter) cleanup() {
-	for range time.Tick(10 * time.Minute) {
-		rl.mu.Lock()
-		now := time.Now()
-		for ip, b := range rl.buckets {
-			if now.After(b.resetAt) {
-				delete(rl.buckets, ip)
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			rl.mu.Lock()
+			now := time.Now()
+			for ip, b := range rl.buckets {
+				if now.After(b.resetAt) {
+					delete(rl.buckets, ip)
+				}
 			}
+			rl.mu.Unlock()
+		case <-rl.done:
+			return
 		}
-		rl.mu.Unlock()
 	}
+}
+
+func (rl *rateLimiter) stop() {
+	close(rl.done)
 }
 
 func rateLimitMiddleware(rl *rateLimiter, next httprouter.Handle) httprouter.Handle {

@@ -621,6 +621,7 @@ func TestRegisterRateLimit(t *testing.T) {
 	Config.API.HeaderName = "X-Forwarded-For"
 
 	limiter := newRateLimiter(Config.API.RegisterRateLimit)
+	defer limiter.stop()
 
 	api2 := httprouter.New()
 	api2.POST("/register", rateLimitMiddleware(limiter, webRegisterPost))
