@@ -126,8 +126,12 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsServers []*DNSServer)
 		// Logwriter for saner log output
 		c.Log = stdlog.New(logWriter, "", 0)
 	}
+	var registerLimiter *rateLimiter
+	if config.API.RegisterRateLimit > 0 {
+		registerLimiter = newRateLimiter(config.API.RegisterRateLimit)
+	}
 	if !config.API.DisableRegistration {
-		api.POST("/register", webRegisterPost)
+		api.POST("/register", rateLimitMiddleware(registerLimiter, webRegisterPost))
 	}
 	api.POST("/update", Auth(webUpdatePost))
 	api.GET("/health", healthCheck)
