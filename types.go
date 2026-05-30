@@ -52,6 +52,12 @@ type httpapi struct {
 	CorsOrigins         []string
 	UseHeader           bool   `toml:"use_header"`
 	HeaderName          string `toml:"header_name"`
+	Admin               adminconfig
+}
+
+// Admin API config
+type adminconfig struct {
+	Token string
 }
 
 // Logging config
