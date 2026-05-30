@@ -12,6 +12,14 @@ builds:
     goos:
       - linux
       - darwin
+  - id: acme-dns-mcp
+    main: ./cmd/acme-dns-mcp
+    binary: acme-dns-mcp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
 checksum:
   name_template: 'checksums.txt'
 snapshot:
