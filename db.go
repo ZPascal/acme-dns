@@ -179,14 +179,19 @@ func (d *acmedb) handleDBUpgradeTo1() error {
 
 // Create two rows for subdomain to the txt table
 func (d *acmedb) NewTXTValuesInTransaction(tx *sql.Tx, subdomain string) error {
-	instr := "INSERT INTO txt (Subdomain, LastUpdate) values($1, 0)"
+	stmt := "INSERT INTO txt (Subdomain, LastUpdate) values($1, 0)"
 	if Config.Database.Engine == "sqlite3" {
-		instr = getSQLiteStmt(instr)
+		stmt = getSQLiteStmt(stmt)
 	}
-	if _, err := tx.Exec(instr, subdomain); err != nil {
+	ps, err := tx.Prepare(stmt)
+	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(instr, subdomain); err != nil {
+	defer closeStatement(ps)
+	if _, err := ps.Exec(subdomain); err != nil {
+		return err
+	}
+	if _, err := ps.Exec(subdomain); err != nil {
 		return err
 	}
 	return nil
