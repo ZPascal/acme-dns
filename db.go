@@ -388,8 +388,14 @@ func (d *acmedb) DeleteRecord(id string) error {
 	if Config.Database.Engine == "sqlite3" {
 		stmt = getSQLiteStmt(stmt)
 	}
-	_, err := d.DB.Exec(stmt, id)
-	return err
+	result, err := d.DB.Exec(stmt, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func getModelFromRow(r *sql.Rows) (ACMETxt, error) {
