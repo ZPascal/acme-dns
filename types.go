@@ -84,4 +84,8 @@ type database interface {
 	Close()
 	Lock()
 	Unlock()
+	CreateRecord(DNSRecord) error
+	ListRecords(filterType, filterName string) ([]DNSRecord, error)
+	UpdateRecord(DNSRecord) error
+	DeleteRecord(id string) error
 }
