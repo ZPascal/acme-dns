@@ -81,3 +81,31 @@ func TestToolListTools(t *testing.T) {
 		}
 	}
 }
+
+func TestToolListRecords(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/admin/records" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[{"id":"test-id","name":"example.com","type":"A","value":"1.2.3.4","ttl":300,"created":0}]`))
+		}
+	}))
+	defer srv.Close()
+
+	cfg := mcpConfig{BaseURL: srv.URL, AdminToken: "test-token"}
+	result, err := callTool(cfg, "list_dns_records", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("list_dns_records failed: %v", err)
+	}
+	records, ok := result["records"]
+	if !ok {
+		t.Fatalf("expected 'records' key in result, got %v", result)
+	}
+	arr, ok := records.([]interface{})
+	if !ok {
+		t.Fatalf("expected records to be array, got %T", records)
+	}
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(arr))
+	}
+}
