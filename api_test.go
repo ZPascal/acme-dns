@@ -72,6 +72,7 @@ func setupRouter(debug bool, noauth bool) http.Handler {
 	})
 	api.POST("/register", webRegisterPost)
 	api.GET("/health", healthCheck)
+	api.GET("/openapi.json", serveOpenAPI)
 	if noauth {
 		api.POST("/update", noAuth(webUpdatePost))
 	} else {
@@ -441,6 +442,17 @@ func TestApiHealthCheck(t *testing.T) {
 	defer server.Close()
 	e := getExpect(t, server)
 	e.GET("/health").Expect().Status(http.StatusOK)
+}
+
+func TestOpenAPIEndpoint(t *testing.T) {
+	router := setupRouter(false, false)
+	server := httptest.NewServer(router)
+	defer server.Close()
+	e := getExpect(t, server)
+	resp := e.GET("/openapi.json").Expect()
+	resp.Status(http.StatusOK)
+	resp.Header("Content-Type").Contains("application/json")
+	resp.JSON().Object().ContainsKey("openapi")
 }
 
 func setupAdminRouter(t *testing.T, token string) (*httptest.Server, *httpexpect.Expect) {
