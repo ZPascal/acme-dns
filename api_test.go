@@ -614,6 +614,31 @@ func TestAdminWrongToken(t *testing.T) {
 	e.GET("/admin/records").WithHeader("Authorization", "Bearer wrong-token").Expect().Status(http.StatusUnauthorized)
 }
 
+func TestRegisterRateLimit(t *testing.T) {
+	// Use a very low limit to trigger rate limiting quickly
+	Config.API.RegisterRateLimit = 2
+	Config.API.UseHeader = true
+	Config.API.HeaderName = "X-Forwarded-For"
+
+	limiter := newRateLimiter(Config.API.RegisterRateLimit)
+	defer limiter.stop()
+
+	api2 := httprouter.New()
+	api2.POST("/register", rateLimitMiddleware(limiter, webRegisterPost))
+	c := cors.New(cors.Options{AllowedOrigins: []string{"*"}, AllowedMethods: []string{"GET", "POST"}})
+	server2 := httptest.NewServer(c.Handler(api2))
+	defer server2.Close()
+	e2 := getExpect(t, server2)
+
+	// First two should succeed
+	e2.POST("/register").WithHeader("X-Forwarded-For", "10.0.0.1").Expect().Status(http.StatusCreated)
+	e2.POST("/register").WithHeader("X-Forwarded-For", "10.0.0.1").Expect().Status(http.StatusCreated)
+	// Third from same IP should be rate limited
+	e2.POST("/register").WithHeader("X-Forwarded-For", "10.0.0.1").Expect().Status(http.StatusTooManyRequests)
+	// Different IP should still work
+	e2.POST("/register").WithHeader("X-Forwarded-For", "10.0.0.2").Expect().Status(http.StatusCreated)
+}
+
 func TestAdminCreateRecordInvalidValue(t *testing.T) {
 	_, e := setupAdminRouter(t, "test-token")
 	payload := map[string]interface{}{

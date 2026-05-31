@@ -1,4 +1,17 @@
 # Changelog
+
+## Unreleased
+
+### Breaking Changes
+- `corsorigins` default changed from `["*"]` to `[]` (deny all cross-origin by default).
+  If you rely on the default wildcard CORS behavior, explicitly set `corsorigins = ["*"]` in your config.
+
+### Security
+- Fixed SQL injection pattern in `NewTXTValuesInTransaction` (defense-in-depth, input was already sanitized)
+- Raised bcrypt cost factor from 10 to 12
+- Added per-IP rate limiting on `/register` endpoint (`register_ratelimit` config option)
+- `jsonError` now uses `json.Marshal` to safely encode error messages
+
 - v0.18.0:
   - Switched to go 1.24
 - v0.17.1:

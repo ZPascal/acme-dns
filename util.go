@@ -2,8 +2,8 @@ package main
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"math/big"
 	"os"
 	"regexp"
@@ -14,7 +14,8 @@ import (
 )
 
 func jsonError(message string) []byte {
-	return []byte(fmt.Sprintf("{\"error\": \"%s\"}", message))
+	b, _ := json.Marshal(map[string]string{"error": message})
+	return b
 }
 
 func fileIsAccessible(fName string) bool {
