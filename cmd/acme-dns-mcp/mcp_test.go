@@ -8,15 +8,21 @@ import (
 )
 
 func TestLoadConfigFromEnv(t *testing.T) {
-	os.Setenv("ACMEDNS_BASE_URL", "https://acmedns.example.com")
-	os.Setenv("ACMEDNS_ADMIN_TOKEN", "secret-admin")
-	os.Setenv("ACMEDNS_USERNAME", "user-uuid")
-	os.Setenv("ACMEDNS_PASSWORD", "user-pass")
+	require := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	require(os.Setenv("ACMEDNS_BASE_URL", "https://acmedns.example.com"))
+	require(os.Setenv("ACMEDNS_ADMIN_TOKEN", "secret-admin"))
+	require(os.Setenv("ACMEDNS_USERNAME", "user-uuid"))
+	require(os.Setenv("ACMEDNS_PASSWORD", "user-pass"))
 	defer func() {
-		os.Unsetenv("ACMEDNS_BASE_URL")
-		os.Unsetenv("ACMEDNS_ADMIN_TOKEN")
-		os.Unsetenv("ACMEDNS_USERNAME")
-		os.Unsetenv("ACMEDNS_PASSWORD")
+		_ = os.Unsetenv("ACMEDNS_BASE_URL")
+		_ = os.Unsetenv("ACMEDNS_ADMIN_TOKEN")
+		_ = os.Unsetenv("ACMEDNS_USERNAME")
+		_ = os.Unsetenv("ACMEDNS_PASSWORD")
 	}()
 
 	cfg := loadConfig("")
@@ -35,15 +41,22 @@ func TestLoadConfigFromEnv(t *testing.T) {
 }
 
 func TestLoadConfigFromFile(t *testing.T) {
-	f, _ := os.CreateTemp("", "mcp-cfg-*.toml")
-	defer os.Remove(f.Name())
-	f.WriteString(`
+	f, err := os.CreateTemp("", "mcp-cfg-*.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Remove(f.Name()) }()
+	if _, err := f.WriteString(`
 base_url = "https://local.example.com"
 admin_token = "file-admin"
 username = "file-user"
 password = "file-pass"
-`)
-	f.Close()
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := loadConfig(f.Name())
 	if cfg.BaseURL != "https://local.example.com" {
@@ -87,7 +100,7 @@ func TestToolListRecords(t *testing.T) {
 		if r.URL.Path == "/admin/records" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`[{"id":"test-id","name":"example.com","type":"A","value":"1.2.3.4","ttl":300,"created":0}]`))
+			_, _ = w.Write([]byte(`[{"id":"test-id","name":"example.com","type":"A","value":"1.2.3.4","ttl":300,"created":0}]`))
 		}
 	}))
 	defer srv.Close()
