@@ -58,6 +58,9 @@ var dnsRecordsTable = `
 		created INTEGER NOT NULL
 	);`
 
+var dnsRecordsIndex = `
+	CREATE INDEX IF NOT EXISTS idx_dns_records_name_type ON dns_records (name, type);`
+
 // getSQLiteStmt replaces all PostgreSQL prepared statement placeholders (eg. $1, $2) with SQLite variant "?"
 func getSQLiteStmt(s string) string {
 	re, _ := regexp.Compile(`\$[0-9]`)
@@ -91,6 +94,7 @@ func (d *acmedb) Init(engine string, connection string) error {
 		_, _ = d.DB.Exec(txtTablePG)
 	}
 	_, _ = d.DB.Exec(dnsRecordsTable)
+	_, _ = d.DB.Exec(dnsRecordsIndex)
 	// If everything is fine, handle db upgrade tasks
 	if err == nil {
 		err = d.checkDBUpgrades(versionString)

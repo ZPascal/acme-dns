@@ -249,15 +249,23 @@ func (d *DNSServer) answerOwnChallenge(q dns.Question) ([]dns.RR, error) {
 }
 
 func (d *DNSServer) answerManaged(q dns.Question) []dns.RR {
+	qtype := dns.TypeToString[q.Qtype]
+	if qtype == "" {
+		return nil
+	}
 	name := strings.ToLower(q.Name)
-	records, err := d.DB.ListRecords(dns.TypeToString[q.Qtype], name)
+	records, err := d.DB.ListRecords(qtype, name)
 	if err != nil {
 		log.WithFields(log.Fields{"error": err.Error()}).Debug("Error querying managed records")
 		return nil
 	}
 	var rrs []dns.RR
 	for _, rec := range records {
-		rrStr := fmt.Sprintf("%s %d IN %s %s", rec.Name, rec.TTL, rec.Type, rec.Value)
+		value := rec.Value
+		if rec.Type == "TXT" || rec.Type == "CAA" {
+			value = `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+		}
+		rrStr := fmt.Sprintf("%s %d IN %s %s", rec.Name, rec.TTL, rec.Type, value)
 		rr, err := dns.NewRR(rrStr)
 		if err != nil {
 			log.WithFields(log.Fields{"error": err.Error(), "record": rrStr}).Warning("Could not parse managed RR")

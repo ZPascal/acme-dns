@@ -118,7 +118,7 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsServers []*DNSServer)
 	c := cors.New(cors.Options{
 		AllowedOrigins:     config.API.CorsOrigins,
 		AllowedMethods:     []string{"GET", "POST", "PUT", "DELETE"},
-		AllowedHeaders:     []string{"Authorization", "Content-Type"},
+		AllowedHeaders:     []string{"Authorization", "Content-Type", "X-Api-User", "X-Api-Key"},
 		OptionsPassthrough: false,
 		Debug:              config.General.Debug,
 	})

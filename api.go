@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
+	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"net/http"
@@ -15,6 +16,23 @@ import (
 	"time"
 )
 
+// toFQDN ensures a DNS name ends with a trailing dot for consistent storage and lookup.
+func toFQDN(name string) string {
+	name = strings.ToLower(name)
+	if !strings.HasSuffix(name, ".") {
+		name += "."
+	}
+	return name
+}
+
+// probeRR validates that rtype+value form a parseable DNS RR using a placeholder name and TTL.
+func probeRR(rtype, value string) bool {
+	if rtype == "TXT" || rtype == "CAA" {
+		value = `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+	}
+	_, err := dns.NewRR(fmt.Sprintf("probe.invalid. 300 IN %s %s", rtype, value))
+	return err == nil
+}
 // RegResponse is a struct for registration response JSON
 type RegResponse struct {
 	Username   string   `json:"username"`
@@ -147,8 +165,11 @@ func adminBearerMiddleware(next httprouter.Handle) httprouter.Handle {
 }
 
 func adminListRecords(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	filterType := r.URL.Query().Get("type")
+	filterType := strings.ToUpper(r.URL.Query().Get("type"))
 	filterName := r.URL.Query().Get("name")
+	if filterName != "" {
+		filterName = toFQDN(filterName)
+	}
 	records, err := DB.ListRecords(filterType, filterName)
 	if err != nil {
 		log.WithFields(log.Fields{"error": err.Error()}).Error("Error in admin handler")
@@ -188,6 +209,12 @@ func adminCreateRecord(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 		_, _ = w.Write(jsonError("invalid_record_value"))
 		return
 	}
+	if !probeRR(req.Type, req.Value) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write(jsonError("invalid_record_value"))
+		return
+	}
 	ttl := req.TTL
 	if ttl == 0 {
 		ttl = 300
@@ -200,7 +227,7 @@ func adminCreateRecord(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 	}
 	rec := DNSRecord{
 		ID:      uuid.New().String(),
-		Name:    strings.ToLower(req.Name),
+		Name:    toFQDN(req.Name),
 		Type:    req.Type,
 		Value:   req.Value,
 		TTL:     ttl,
@@ -245,6 +272,12 @@ func adminUpdateRecord(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		_, _ = w.Write(jsonError("invalid_record_value"))
 		return
 	}
+	if !probeRR(req.Type, req.Value) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write(jsonError("invalid_record_value"))
+		return
+	}
 	if req.TTL != 0 && !validTTL(req.TTL) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -255,7 +288,7 @@ func adminUpdateRecord(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	if ttl == 0 {
 		ttl = 300
 	}
-	rec := DNSRecord{ID: id, Name: strings.ToLower(req.Name), Type: req.Type, Value: req.Value, TTL: ttl}
+	rec := DNSRecord{ID: id, Name: toFQDN(req.Name), Type: req.Type, Value: req.Value, TTL: ttl}
 	if err := DB.UpdateRecord(rec); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		if errors.Is(err, sql.ErrNoRows) {
