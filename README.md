@@ -110,7 +110,8 @@ Create a new DNS record.
 - `value`: Record value (required)
   - A: IPv4 address
   - AAAA: IPv6 address
-  - NS, CNAME, PTR, MX: Hostname
+  - NS, CNAME, PTR: Hostname
+  - MX: `<preference> <exchange hostname>`, e.g. `0 mail.example.com.`
   - TXT: Text string (automatically quoted if not already)
   - SRV: Service record format
 - `ttl`: Time-to-live in seconds (optional, defaults to 300)
@@ -377,7 +378,7 @@ protocol = "both"
 domain = "auth.example.org"
 # zone name server
 nsname = "auth.example.org"
-# admin email address, where @ is substituted with .
+# admin email address, where @ is substituted with .
 nsadmin = "admin.example.org"
 # predefined records served in addition to the TXT
 records = [

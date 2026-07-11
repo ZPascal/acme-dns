@@ -495,6 +495,17 @@ func TestAdminCreateRecord(t *testing.T) {
 		JSON().Object().ContainsKey("id")
 }
 
+func TestAdminCreateRecordInvalidName(t *testing.T) {
+	_, e := setupAdminRouter(t, "test-token")
+
+	body := map[string]interface{}{"name": "foo bar\n.example.com", "type": "A", "value": "1.2.3.4", "ttl": 300}
+	e.POST("/admin/records").
+		WithHeader("Authorization", "Bearer test-token").
+		WithJSON(body).
+		Expect().
+		Status(http.StatusBadRequest)
+}
+
 func TestAdminCreateRecordInvalidType(t *testing.T) {
 	_, e := setupAdminRouter(t, "test-token")
 
@@ -594,6 +605,13 @@ func TestAdminUpdateRecord(t *testing.T) {
 		WithHeader("Authorization", "Bearer test-token").
 		WithJSON(invalidTypeBody).
 		Expect().Status(http.StatusBadRequest)
+
+	// Invalid-name case: should return 400
+	invalidNameBody := map[string]interface{}{"name": "foo bar\n.example.com", "type": "A", "value": "5.6.7.8", "ttl": 60}
+	e.PUT("/admin/records/"+id).
+		WithHeader("Authorization", "Bearer test-token").
+		WithJSON(invalidNameBody).
+		Expect().Status(http.StatusBadRequest)
 }
 
 func TestAdminWrongToken(t *testing.T) {
@@ -677,6 +695,21 @@ func TestAdminCreateRecordInvalidValue(t *testing.T) {
 		WithHeader("Authorization", "Bearer test-token").
 		WithJSON(payload).
 		Expect().Status(http.StatusBadRequest)
+}
+
+func TestAdminCreateMXRecord(t *testing.T) {
+	// MX values must carry a preference before the exchange hostname, e.g. "0 mail.example.com."
+	_, e := setupAdminRouter(t, "test-token")
+	payload := map[string]interface{}{
+		"name":  "mx.example.com",
+		"type":  "MX",
+		"value": "0 mail.example.com.",
+		"ttl":   300,
+	}
+	e.POST("/admin/records").
+		WithHeader("Authorization", "Bearer test-token").
+		WithJSON(payload).
+		Expect().Status(http.StatusCreated).JSON().Object().ContainsKey("id")
 }
 
 func TestAdminCreateRecordInvalidMXValue(t *testing.T) {

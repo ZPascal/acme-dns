@@ -10,14 +10,16 @@
     - Store custom DNS records in a database (A, AAAA, NS, TXT, CNAME, MX, SOA, SRV, PTR)
     - Comprehensive DNS record validation (type, value, TTL)
   - Changed
-    - DNS server now serves both challenge records and managed records from database
+    - DNS server now serves both challenge records and managed records from the database
     - FQDN normalization on ingress for consistency
     - Added database index for efficient record lookups
     - Raised bcrypt cost factor from 10 to 12
     - `jsonError` now uses `json.Marshal` to safely encode error messages
+    - Corrected README documentation for the MX record `value` format (requires a preference before the exchange hostname, e.g. `0 mail.example.com.`) and added test coverage for MX record creation and serving
   - Security
     - Fixed SQL injection pattern in `NewTXTValuesInTransaction` (defense-in-depth, input was already sanitized)
     - Added per-IP rate limiting on `/register` endpoint (`register_ratelimit` config option)
+    - Added validation for the admin record `name` field to reject whitespace/control characters before it is spliced into RR strings for DNS responses (defense-in-depth)
 - v0.21.6:
   - Changed
     - Update base image to golang:1.26-alpine3.23

@@ -213,7 +213,7 @@ func adminCreateRecord(w http.ResponseWriter, r *http.Request, _ httprouter.Para
 		_, _ = w.Write(jsonError("malformed_json_payload"))
 		return
 	}
-	if req.Name == "" {
+	if !validRecordName(req.Name) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write(jsonError("invalid_name"))
@@ -277,7 +277,7 @@ func adminUpdateRecord(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		_, _ = w.Write(jsonError("malformed_json_payload"))
 		return
 	}
-	if req.Name == "" {
+	if !validRecordName(req.Name) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write(jsonError("invalid_name"))

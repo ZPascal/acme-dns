@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -171,6 +172,36 @@ func TestValidRecordValue(t *testing.T) {
 		got := validRecordValue(tc.rtype, tc.value)
 		if got != tc.valid {
 			t.Errorf("validRecordValue(%q, %q) = %v, want %v", tc.rtype, tc.value, got, tc.valid)
+		}
+	}
+}
+
+func TestValidRecordName(t *testing.T) {
+	cases := []struct {
+		name  string
+		valid bool
+	}{
+		{"example.com", true},
+		{"sub.example.com", true},
+		{"_dmarc.example.com", true},
+		{"_sip._tcp.example.com", true},
+		{"*.example.com", true},
+		{"example.com.", true},
+		{"localhost", true},
+		{"", false},
+		{"foo bar.example.com", false},
+		{"foo\nexample.com", false},
+		{"foo\texample.com", false},
+		{"-foo.example.com", false},
+		{"foo-.example.com", false},
+		{"foo..example.com", false},
+		{strings.Repeat("a", 64) + ".example.com", false},
+		{strings.Repeat("a.", 127) + "com", false},
+	}
+	for _, tc := range cases {
+		got := validRecordName(tc.name)
+		if got != tc.valid {
+			t.Errorf("validRecordName(%q) = %v, want %v", tc.name, got, tc.valid)
 		}
 	}
 }
