@@ -148,6 +148,23 @@ func TestPrepareConfig(t *testing.T) {
 	}
 }
 
+func TestJsonErrorWithSpecialChars(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"simple error", `{"error":"simple error"}`},
+		{`error with "quotes"`, `{"error":"error with \"quotes\""}`},
+		{"error with\nnewline", `{"error":"error with\nnewline"}`},
+	}
+	for _, tc := range cases {
+		got := string(jsonError(tc.input))
+		if got != tc.expected {
+			t.Errorf("jsonError(%q) = %q, want %q", tc.input, got, tc.expected)
+		}
+	}
+}
+
 func cleanupTmpFile(tmpFile string) {
 	if err := os.Remove(tmpFile); err != nil {
 		panic("Could not remove temporary file")

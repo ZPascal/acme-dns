@@ -115,19 +115,24 @@ func startHTTPAPI(errChan chan error, config DNSConfig, dnsServers []*DNSServer)
 	legolog.Logger = logger
 
 	api := httprouter.New()
-	c := cors.New(cors.Options{
-		AllowedOrigins:     config.API.CorsOrigins,
-		AllowedMethods:     []string{"GET", "POST", "PUT", "DELETE"},
-		AllowedHeaders:     []string{"Authorization", "Content-Type", "X-Api-User", "X-Api-Key"},
-		OptionsPassthrough: false,
-		Debug:              config.General.Debug,
-	})
+	corsOpts := buildCORSOptions(
+		config.API.CorsOrigins,
+		[]string{"GET", "POST", "PUT", "DELETE"},
+		[]string{"Authorization", "Content-Type", "X-Api-User", "X-Api-Key"},
+	)
+	corsOpts.OptionsPassthrough = false
+	corsOpts.Debug = config.General.Debug
+	c := cors.New(corsOpts)
 	if config.General.Debug {
 		// Logwriter for saner log output
 		c.Log = stdlog.New(logWriter, "", 0)
 	}
+	var registerLimiter *rateLimiter
+	if config.API.RegisterRateLimit > 0 {
+		registerLimiter = newRateLimiter(config.API.RegisterRateLimit)
+	}
 	if !config.API.DisableRegistration {
-		api.POST("/register", webRegisterPost)
+		api.POST("/register", rateLimitMiddleware(registerLimiter, webRegisterPost))
 	}
 	api.POST("/update", Auth(webUpdatePost))
 	api.GET("/health", healthCheck)

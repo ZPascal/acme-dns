@@ -1,15 +1,23 @@
 # Changelog
-- v0.22.0:
+- v1.0.0:
   - NOTE: Admin API is disabled by default. Set an admin token in `[api.admin]` section to enable it.
+  - Breaking Changes
+    - `corsorigins` default changed from `["*"]` to `[]` (deny all cross-origin by default).
+      If you rely on the default wildcard CORS behavior, explicitly set `corsorigins = ["*"]` in your config.
   - New
     - Admin API for managing DNS records (CRUD operations)
     - Bearer token authentication for admin endpoints
-    - Store custom DNS records in database (A, AAAA, NS, TXT, CNAME, MX, SOA, SRV, PTR)
+    - Store custom DNS records in a database (A, AAAA, NS, TXT, CNAME, MX, SOA, SRV, PTR)
     - Comprehensive DNS record validation (type, value, TTL)
   - Changed
     - DNS server now serves both challenge records and managed records from database
     - FQDN normalization on ingress for consistency
     - Added database index for efficient record lookups
+    - Raised bcrypt cost factor from 10 to 12
+    - `jsonError` now uses `json.Marshal` to safely encode error messages
+  - Security
+    - Fixed SQL injection pattern in `NewTXTValuesInTransaction` (defense-in-depth, input was already sanitized)
+    - Added per-IP rate limiting on `/register` endpoint (`register_ratelimit` config option)
 - v0.21.6:
   - Changed
     - Update base image to golang:1.26-alpine3.23
@@ -59,76 +67,6 @@
 - v0.18.1:
   - Changed
     - Dependencies update
-- v0.22.0:
-  - NOTE: Admin API is disabled by default. Set an admin token in `[api.admin]` section to enable it.
-  - New
-    - Admin API for managing DNS records (CRUD operations)
-    - Bearer token authentication for admin endpoints
-    - Store custom DNS records in database (A, AAAA, NS, TXT, CNAME, MX, SOA, SRV, PTR)
-    - Comprehensive DNS record validation (type, value, TTL)
-  - Changed
-    - DNS server now serves both challenge records and managed records from database
-    - FQDN normalization on ingress for consistency
-    - Added database index for efficient record lookups
-- v0.21.6:
-  - Changed
-    - Update base image to golang:1.26-alpine3.23
-    - Dependencies update
-- v0.21.5:
-  - Changed
-    - Remove asciicast link from README
-    - Dependencies update
-- v0.21.4:
-  - Changed
-    - Add token to checkout step in workflow
-    - Fix tag command in monthly patch release workflow
-    - Refactor Git configuration and tag creation step
-    - Dependencies update
-- v0.21.3:
-  - Changed
-    - Update the Go version and add GH action for the automatic release handling
-    - Dependencies update
-- v0.21.2:
-  - Changed
-    - Dependencies update
-- v0.21.1:
-  - Changed
-    - Dependencies update
-- v0.21.0:
-  - Changed
-    - Update the Lego version
-    - Dependencies update
-- v0.20.0:
-  - New
-    - Add the Codeowners file
-  - Changed
-    - Update the Go version
-    - Dependencies update
-- v0.19.1:
-  - Changed
-    - Update the Alpine version
-    - Dependencies update
-- v0.19.0:
-  - Changed
-    - Update the Alpine version
-    - Dependencies update
-- v0.18.2:
-  - Changed
-    - Bump the used version
-    - Dependencies update
-- v0.18.1:
-  - Changed
-    - Dependencies update
-- v0.22.0:
-  - New
-    - Admin API for managing DNS records (CRUD operations)
-    - Bearer token authentication for admin endpoints
-    - Store custom DNS records in database (A, AAAA, NS, TXT, CNAME, MX, SOA, SRV, PTR)
-    - Comprehensive DNS record validation (type, value, TTL)
-  - Changed
-    - DNS server now serves both challenge records and managed records from database
-    - FQDN normalization on ingress for consistency
-    - Added database index for efficient record lookups
 - v0.18.0:
   - Switched to go 1.24
 - v0.17.1:
