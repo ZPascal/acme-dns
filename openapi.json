@@ -1,0 +1,188 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "acme-dns",
+    "version": "1.0.0",
+    "description": "Simplified DNS server with HTTP API for ACME DNS challenge automation and general DNS record management."
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiUser": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-User",
+        "description": "UUIDv4 username obtained from /register"
+      },
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "40-character base64url password obtained from /register"
+      },
+      "AdminBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Admin token configured in [api.admin].token"
+      }
+    },
+    "schemas": {
+      "Registration": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string", "format": "uuid" },
+          "password": { "type": "string" },
+          "fulldomain": { "type": "string" },
+          "subdomain": { "type": "string" },
+          "allowfrom": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "TxtUpdate": {
+        "type": "object",
+        "required": ["subdomain", "txt"],
+        "properties": {
+          "subdomain": { "type": "string", "description": "UUID subdomain from registration" },
+          "txt": { "type": "string", "minLength": 43, "maxLength": 43, "description": "ACME challenge token (exactly 43 characters)" }
+        }
+      },
+      "DNSRecord": {
+        "type": "object",
+        "required": ["name", "type", "value"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string", "description": "Fully qualified domain name, e.g. sub.example.com" },
+          "type": { "type": "string", "enum": ["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA", "PTR"] },
+          "value": { "type": "string" },
+          "ttl": { "type": "integer", "minimum": 1, "maximum": 86400, "default": 300 },
+          "created": { "type": "integer", "description": "Unix timestamp" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/register": {
+      "post": {
+        "summary": "Register a new subdomain",
+        "description": "Creates a new user account with a UUID subdomain for ACME DNS challenge delegation. Optionally restrict access to specific IP CIDRs.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "allowfrom": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Optional list of CIDR ranges allowed to use this account, e.g. [\"192.168.1.0/24\"]"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Registration" } } }
+          },
+          "400": { "description": "Invalid CIDR or malformed JSON", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/update": {
+      "post": {
+        "summary": "Update ACME TXT record",
+        "description": "Updates the TXT record for your subdomain with a new ACME challenge token. Requires X-Api-User and X-Api-Key headers from registration.",
+        "security": [{ "ApiUser": [], "ApiKey": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TxtUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "TXT record updated", "content": { "application/json": { "schema": { "type": "object", "properties": { "txt": { "type": "string" } } } } } },
+          "400": { "description": "Invalid subdomain or TXT value" },
+          "401": { "description": "Invalid credentials or IP not allowed" }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Returns 200 OK when the server is ready. Use for liveness and readiness probes.",
+        "responses": {
+          "200": { "description": "Server is healthy" }
+        }
+      }
+    },
+    "/admin/records": {
+      "get": {
+        "summary": "List DNS records",
+        "description": "Returns all managed DNS records. Filter by type and/or name using query parameters.",
+        "security": [{ "AdminBearer": [] }],
+        "parameters": [
+          { "name": "type", "in": "query", "schema": { "type": "string" }, "description": "Filter by record type, e.g. A" },
+          { "name": "name", "in": "query", "schema": { "type": "string" }, "description": "Filter by exact domain name" }
+        ],
+        "responses": {
+          "200": { "description": "List of records", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DNSRecord" } } } } },
+          "401": { "description": "Invalid or missing admin token" }
+        }
+      },
+      "post": {
+        "summary": "Create DNS record",
+        "description": "Creates a new managed DNS record. Supported types: A, AAAA, CNAME, MX, TXT, NS, SRV, CAA, PTR.",
+        "security": [{ "AdminBearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DNSRecord" } } }
+        },
+        "responses": {
+          "201": { "description": "Record created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DNSRecord" } } } },
+          "400": { "description": "Invalid record type, value, or TTL" },
+          "401": { "description": "Invalid or missing admin token" }
+        }
+      }
+    },
+    "/admin/records/{id}": {
+      "put": {
+        "summary": "Update DNS record",
+        "description": "Updates an existing managed DNS record by ID.",
+        "security": [{ "AdminBearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DNSRecord" } } }
+        },
+        "responses": {
+          "200": { "description": "Record updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DNSRecord" } } } },
+          "400": { "description": "Invalid record data" },
+          "401": { "description": "Invalid or missing admin token" }
+        }
+      },
+      "delete": {
+        "summary": "Delete DNS record",
+        "description": "Deletes a managed DNS record by ID.",
+        "security": [{ "AdminBearer": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Record deleted" },
+          "401": { "description": "Invalid or missing admin token" }
+        }
+      }
+    }
+  }
+}

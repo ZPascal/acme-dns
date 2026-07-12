@@ -9,6 +9,8 @@
     - Bearer token authentication for admin endpoints
     - Store custom DNS records in a database (A, AAAA, NS, TXT, CNAME, MX, SOA, SRV, PTR)
     - Comprehensive DNS record validation (type, value, TTL)
+    - OpenAPI 3.1 specification served at `GET /openapi.json`
+    - `acme-dns-mcp` binary: stdio MCP server exposing acme-dns as tools for MCP-compatible AI agents
   - Changed
     - DNS server now serves both challenge records and managed records from the database
     - FQDN normalization on ingress for consistency

@@ -20,6 +20,8 @@ For longer explanation of the underlying issue and other proposed solutions, see
 - Simplified DNS server, serving your ACME DNS challenges (TXT)
 - Custom records (have your required A, AAAA, NS, etc. records served)
 - Admin API for managing DNS records with Bearer token authentication
+- OpenAPI 3.1 specification served at `GET /openapi.json`
+- MCP server binary (`acme-dns-mcp`) exposing acme-dns as structured tools for MCP-compatible AI agents
 - HTTP API automatically acquires and uses Let's Encrypt TLS certificate
 - Limit /update API endpoint access to specific CIDR mask(s), defined in the /register request
 - Supports SQLite & PostgreSQL as DB backends
@@ -253,6 +255,91 @@ The method can be used to check readiness and/or liveness of the server. It will
 
 `GET /health`
 
+### OpenAPI specification
+
+A static OpenAPI 3.1 document describing every endpoint above (`/register`, `/update`, `/health`, and the admin record CRUD endpoints) is embedded in the binary and served without authentication:
+
+`GET /openapi.json`
+
+Point any OpenAPI-compatible tool (Swagger UI, Postman, code generators, etc.) at this URL to explore or generate a client for the API.
+
+## MCP Server
+
+`cmd/acme-dns-mcp` builds a separate binary, `acme-dns-mcp`, that exposes the acme-dns HTTP API as [Model Context Protocol](https://modelcontextprotocol.io) (MCP) tools over stdio, so MCP-compatible AI agents (Claude Desktop, Claude Code, etc.) can register subdomains, publish ACME challenge records, and manage DNS records on your behalf.
+
+It is a thin, stateless JSON-RPC 2.0 wrapper: every tool call becomes a single HTTP request against a running acme-dns instance (configured via `base_url`) and the HTTP response is translated back into an MCP tool result. It does not talk to the database or DNS server directly.
+
+### Installing
+
+`acme-dns-mcp` ships in the same release archive as `acme-dns` (see [Installation](#installation)). Download the archive for your platform from the [latest release](https://github.com/zpascal/acme-dns/releases/latest), extract it, and move the binary to a directory in your $PATH, for example:
+
+`sudo mv acme-dns-mcp /usr/local/bin`
+
+### Configuring
+
+Configuration is read from a TOML file, then overridden by environment variables. Both are optional — a missing config file is not an error, and any field can be supplied purely through the environment.
+
+- Default file location: `~/.acme-dns-mcp/config.toml`
+- Override the file location with `ACMEDNS_MCP_CONFIG=/path/to/config.toml`
+
+```toml
+# ~/.acme-dns-mcp/config.toml
+base_url = "https://auth.example.org"
+admin_token = "your-secret-admin-token-here"
+username = "c36f50e8-4632-44f0-83fe-e070fef28a10"
+password = "paasword"
+```
+
+| TOML key      | Environment variable  | Used by                                                                           |
+|---------------|-----------------------|-----------------------------------------------------------------------------------|
+| `base_url`    | `ACMEDNS_BASE_URL`    | All tools — the acme-dns instance to talk to                                      |
+| `admin_token` | `ACMEDNS_ADMIN_TOKEN` | `list_dns_records`, `create_dns_record`, `update_dns_record`, `delete_dns_record` |
+| `username`    | `ACMEDNS_USERNAME`    | `update_txt_record`                                                               |
+| `password`    | `ACMEDNS_PASSWORD`    | `update_txt_record`                                                               |
+
+Credentials are only ever read from this configuration — MCP tool arguments never accept a token, username, or password, so a malicious or careless prompt cannot exfiltrate credentials through tool call arguments.
+
+### Registering with an MCP client
+
+Most MCP clients (e.g. Claude Desktop, Claude Code) accept a `command`+`env` style server definition:
+
+```json
+{
+  "mcpServers": {
+    "acme-dns": {
+      "command": "/usr/local/bin/acme-dns-mcp",
+      "env": {
+        "ACMEDNS_BASE_URL": "https://auth.example.org",
+        "ACMEDNS_ADMIN_TOKEN": "your-secret-admin-token-here"
+      }
+    }
+  }
+}
+```
+
+### Available tools
+
+| Tool                 | Requires               | Arguments                                                         | Description                                                                    |
+|----------------------|------------------------|-------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| `health_check`       | —                      | none                                                              | Checks that the acme-dns instance is reachable.                                |
+| `register_subdomain` | —                      | `allowfrom` (optional array of CIDRs)                             | Registers a new subdomain and returns credentials, mirroring `POST /register`. |
+| `update_txt_record`  | `username`, `password` | `subdomain` (required), `txt` (required, exactly 43 characters)   | Publishes an ACME challenge TXT value, mirroring `POST /update`.               |
+| `list_dns_records`   | `admin_token`          | `type`, `name` (both optional filters)                            | Lists managed DNS records, mirroring `GET /admin/records`.                     |
+| `create_dns_record`  | `admin_token`          | `name`, `type`, `value` (required), `ttl` (optional, default 300) | Creates a managed DNS record.                                                  |
+| `update_dns_record`  | `admin_token`          | `id`, `name`, `type`, `value` (required), `ttl` (optional)        | Updates a managed DNS record by ID.                                            |
+| `delete_dns_record`  | `admin_token`          | `id` (required)                                                   | Deletes a managed DNS record by ID.                                            |
+
+Tools that require `admin_token` or `username`/`password` return `{"error": "..."}` (with `isError: true`, see below) instead of making a request when the corresponding configuration is missing.
+
+### Error handling
+
+Every `tools/call` result carries an `isError` flag alongside its content, per the MCP specification:
+
+- **`isError: false`** — the underlying acme-dns API call succeeded (2xx); the content is the API's response.
+- **`isError: true`** — the acme-dns API rejected the request (e.g. `invalid_ttl`, `record_not_found`, `unauthorized`) or the required configuration was missing; the content carries the `{"error": "..."}` body so an MCP client can distinguish a failed operation from a successful one, rather than a failure being reported as an apparently-successful result.
+
+A JSON-RPC-level error (the `error` field on the response, separate from `isError`) is only used for protocol-level failures: an unknown tool name, an unreachable acme-dns instance, or a malformed request.
+
 ## Self-hosted
 
 You are encouraged to run your own acme-dns instance, because you are effectively authorizing the acme-dns server to act on your behalf in providing the answer to the challenging CA, making the instance able to request (and get issued) a TLS certificate for the domain that has CNAME pointing to it.
@@ -261,28 +348,19 @@ See the INSTALL section for information on how to do this.
 
 ## Installation
 
-1. Install [Go 1.24 or newer](https://golang.org/doc/install).
-2. Build acme-dns:
-
-   ```bash
-   git clone https://github.com/zpascal/acme-dns
-   cd acme-dns
-   export GOPATH=/tmp/acme-dns
-   go build
-   ```
-
-3. Move the built acme-dns binary to a directory in your $PATH, for example:
+1. Download the archive for your platform from the [latest release](https://github.com/zpascal/acme-dns/releases/latest) (e.g. `acme-dns_<version>_linux_amd64.tar.gz`, also available for `darwin_amd64`, `darwin_arm64`, `linux_arm64`, and `linux_386`). Each archive contains both the `acme-dns` server binary and the `acme-dns-mcp` binary (see [MCP Server](#mcp-server)).
+2. Extract the archive and move the acme-dns binary to a directory in your $PATH, for example:
    `sudo mv acme-dns /usr/local/bin`
-4. Edit config.cfg to suit your needs (see [configuration](#configuration)). `acme-dns` will read the configuration file from `/etc/acme-dns/config.cfg` or `./config.cfg`, or a location specified with the `-c` flag.
-5. If your system has systemd, you can optionally install acme-dns as a service so that it will start on boot and be tracked by systemd. This also allows us to add the `CAP_NET_BIND_SERVICE` capability so that acme-dns can be run by a user other than root.
+3. Edit config.cfg to suit your needs (see [configuration](#configuration)). `acme-dns` will read the configuration file from `/etc/acme-dns/config.cfg` or `./config.cfg`, or a location specified with the `-c` flag.
+4. If your system has systemd, you can optionally install acme-dns as a service so that it will start on boot and be tracked by systemd. This also allows us to add the `CAP_NET_BIND_SERVICE` capability so that acme-dns can be run by a user other than root.
    1. Make sure that you have moved the configuration file to `/etc/acme-dns/config.cfg` so that acme-dns can access it globally.
-   2. Move the acme-dns executable from `~/go/bin/acme-dns` to `/usr/local/bin/acme-dns` (Any location will work, just be sure to change `acme-dns.service` to match).
+   2. Make sure that the acme-dns executable is at `/usr/local/bin/acme-dns` (any location will work, just be sure to change `acme-dns.service` to match).
    3. Create a minimal acme-dns user: `sudo adduser --system --gecos "acme-dns Service" --disabled-password --group --home /var/lib/acme-dns acme-dns`.
    4. Move the systemd service unit from `acme-dns.service` to `/etc/systemd/system/acme-dns.service`.
    5. Reload systemd units: `sudo systemctl daemon-reload`.
    6. Enable acme-dns on boot: `sudo systemctl enable acme-dns.service`.
    7. Run acme-dns: `sudo systemctl start acme-dns.service`.
-6. If you did not install the systemd service, run `acme-dns`. Please note that acme-dns needs to open a privileged port (53, domain), so it needs to be run with elevated privileges.
+5. If you did not install the systemd service, run `acme-dns`. Please note that acme-dns needs to open a privileged port (53, domain), so it needs to be run with elevated privileges.
 
 ### Upgrading to v1.0.0
 
