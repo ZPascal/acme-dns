@@ -1,8 +1,8 @@
-[![Go](https://github.com/fritterhoff/acme-dns/actions/workflows/go_cov.yml/badge.svg)](https://github.com/fritterhoff/acme-dns/actions/workflows/go_cov.yml) [![codecov](https://codecov.io/gh/fritterhoff/acme-dns/branch/master/graph/badge.svg?token=NA6E3FJ5Z5)](https://codecov.io/gh/fritterhoff/acme-dns) [![Go Report Card](https://goreportcard.com/badge/github.com/fritterhoff/acme-dns)](https://goreportcard.com/report/github.com/fritterhoff/acme-dns)
+[![Go](https://github.com/zpascal/acme-dns/actions/workflows/go_cov.yml/badge.svg)](https://github.com/zpascal/acme-dns/actions/workflows/go_cov.yml)
 
 # acme-dns
 
-A simplified DNS server with a RESTful HTTP API to provide a simple way to automate ACME DNS challenges.
+A lightweight, self-hosted DNS server that exposes a RESTful HTTP API for managing DNS records and automating ACME DNS-01 challenges — without handing full DNS zone access to your automation.
 
 ## Why?
 
@@ -10,6 +10,8 @@ Many DNS servers do not provide an API to enable automation for the ACME DNS cha
 Leaving the keys lying around your random boxes is too often a requirement to have a meaningful process automation.
 
 Acme-dns provides a simple API exclusively for TXT record updates and should be used with ACME magic "\_acme-challenge" - subdomain CNAME records. This way, in the unfortunate exposure of API keys, the effects are limited to the subdomain TXT record in question.
+
+Beyond ACME challenges, acme-dns also exposes a full REST API (with Bearer token authentication, an OpenAPI 3.1 spec, and an MCP server for AI agents) to manage general-purpose DNS records — so the same lightweight server can serve as your day-to-day authoritative DNS API too.
 
 So basically it boils down to **accessibility** and **security**.
 
@@ -19,12 +21,14 @@ For longer explanation of the underlying issue and other proposed solutions, see
 
 - Simplified DNS server, serving your ACME DNS challenges (TXT)
 - Custom records (have your required A, AAAA, NS, etc. records served)
-- Admin API for managing DNS records with Bearer token authentication
+- Full REST API for managing DNS records (create, read, update, delete) with Bearer token authentication
 - OpenAPI 3.1 specification served at `GET /openapi.json`
 - MCP server binary (`acme-dns-mcp`) exposing acme-dns as structured tools for MCP-compatible AI agents
 - HTTP API automatically acquires and uses Let's Encrypt TLS certificate
 - Limit /update API endpoint access to specific CIDR mask(s), defined in the /register request
+- Per-IP rate limiting on the /register endpoint
 - Supports SQLite & PostgreSQL as DB backends
+- High-availability deployments across multiple instances behind a load balancer, backed by a shared PostgreSQL database
 - Rolling update of two TXT records to be able to answer to challenges for certificates that have both names: `yourdomain.tld` and `*.yourdomain.tld`, as both of the challenges point to the same subdomain.
 - Simple deployment (it's Go after all)
 
@@ -69,7 +73,7 @@ Retrieve all DNS records, optionally filtered by record type or name.
 `GET /admin/records?type=TYPE&name=NAME`
 
 **Query Parameters:**
-- `type` (optional): Filter by DNS record type (A, AAAA, NS, TXT, CNAME, MX, etc.)
+- `type` (optional): Filter by DNS record type (A, AAAA, NS, TXT, CNAME, MX, SRV, CAA, PTR)
 - `name` (optional): Filter by record name (domain name)
 
 **Response**
@@ -108,7 +112,7 @@ Create a new DNS record.
 
 **Fields:**
 - `name`: Domain name for the record (required)
-- `type`: DNS record type: A, AAAA, NS, TXT, CNAME, MX, SOA, SRV, PTR (required)
+- `type`: DNS record type: A, AAAA, NS, TXT, CNAME, MX, SRV, CAA, PTR (required)
 - `value`: Record value (required)
   - A: IPv4 address
   - AAAA: IPv6 address
@@ -116,7 +120,8 @@ Create a new DNS record.
   - MX: `<preference> <exchange hostname>`, e.g. `0 mail.example.com.`
   - TXT: Text string (automatically quoted if not already)
   - SRV: Service record format
-- `ttl`: Time-to-live in seconds (optional, defaults to 300)
+  - CAA: CAA record format, e.g. `0 issue "letsencrypt.org"`
+- `ttl`: Time-to-live in seconds (optional, defaults to 300, valid range 1-86400)
 
 **Response**
 
@@ -501,9 +506,10 @@ use_header = false
 header_name = "X-Forwarded-For"
 # max registrations per minute per source IP on the /register endpoint (0 = unlimited)
 register_ratelimit = 10
-# Admin API — leave token empty to disable admin endpoints
+
+# Admin API — leave token empty (or omit this section) to disable admin endpoints
+#[api.admin]
 # token = "your-secret-admin-token-here"
-token = ""
 
 [logconfig]
 # logging level: "error", "warning", "info" or "debug"
