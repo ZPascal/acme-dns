@@ -27,7 +27,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v7
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          version: v2.1.0
+          version: v2.17.0
           args: "release --clean"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,7 +36,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v7
         if: startsWith(github.ref, 'refs/pull/')
         with:
-          version: v2.1.0
+          version: v2.17.0
           args: "release --clean --snapshot"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
