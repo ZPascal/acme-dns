@@ -1,5 +1,6 @@
 # This is an example goreleaser.yaml file with some sane defaults.
 # Make sure to check the documentation at http://goreleaser.com
+version: 2
 before:
   hooks:
     # You may remove this if you don't use go modules.
@@ -7,7 +8,8 @@ before:
     # you may remove this if you don't need go generate
     - go generate ./...
 builds:
-  - env:
+  - id: acme-dns
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -20,10 +22,27 @@ builds:
     goos:
       - linux
       - darwin
+archives:
+  - id: acme-dns
+    ids:
+      - acme-dns
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+  - id: acme-dns-mcp
+    ids:
+      - acme-dns-mcp
+    name_template: >-
+      acme-dns-mcp_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
 checksum:
   name_template: 'checksums.txt'
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ .Tag }}-next"
 changelog:
   sort: asc
   filters:

@@ -376,7 +376,7 @@ See the INSTALL section for information on how to do this.
 2. Create directories: `config` for the configuration file, and `data` for the sqlite3 database.
 3. Copy [configuration template](https://raw.githubusercontent.com/zpascal/acme-dns/master/config.cfg) to `config/config.cfg`.
 4. Modify the `config.cfg` to suit your needs.
-5. Run Docker, this example expects that you have `port = "80"` in your `config.cfg`:
+5. Run Docker. This example expects that you have `port = "80"` in your `config.cfg`:
 
    ```bash
    docker run --rm --name acmedns                \
