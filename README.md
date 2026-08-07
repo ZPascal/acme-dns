@@ -1,4 +1,4 @@
-[![Go](https://github.com/zpascal/acme-dns/actions/workflows/go_cov.yml/badge.svg)](https://github.com/zpascal/acme-dns/actions/workflows/go_cov.yml)
+[![Go](https://github.com/ZPascal/acme-dns/actions/workflows/go-cov.yml/badge.svg)](https://github.com/ZPascal/acme-dns/actions/workflows/go-cov.yml)
 
 # acme-dns
 
