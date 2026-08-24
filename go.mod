@@ -18,7 +18,7 @@ require (
 	github.com/sirupsen/logrus v1.10.0
 	github.com/stretchr/testify v1.12.0
 	golang.org/x/crypto v0.55.0
-	modernc.org/sqlite v1.56.0
+	modernc.org/sqlite v1.57.0
 )
 
 require (
